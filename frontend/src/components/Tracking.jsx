@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import { io } from 'socket.io-client';
@@ -23,27 +23,34 @@ const LiveLocationMap = () => {
   const [endLng, setEndLng] = useState('');
   const [route, setRoute] = useState([]);
   const [creatorLocation, setCreatorLocation] = useState(null);
-  const [socket, setSocket] = useState(null);
+  const socketRef = useRef(null); // Use useRef to ensure only one socket instance
 
+  // Connect to Socket.io
   useEffect(() => {
-    const newSocket = io('http://localhost:5000');
-    setSocket(newSocket);
+    if (!socketRef.current) {
+      socketRef.current = io('https://live-tracking-backend-07ma.onrender.com/');
 
-    newSocket.on('roomData', (data) => {
-      setRoute(data.route);
-      setCreatorLocation(data.creatorLocation);
-    });
+      socketRef.current.on('roomData', (data) => {
+        setRoute(data.route);
+        setCreatorLocation(data.creatorLocation);
+      });
 
-    newSocket.on('locationUpdate', (data) => {
-      setCreatorLocation(data.location);
-    });
+      socketRef.current.on('locationUpdate', (data) => {
+        setCreatorLocation(data.location);
+      });
+    }
 
-    return () => newSocket.disconnect();
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
   }, []);
 
   const calculateRoute = async (startCoords, endCoords) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/directions', {
+      const response = await axios.post('https://live-tracking-backend-07ma.onrender.com/api/directions', {
         coordinates: [
           [startCoords.lng, startCoords.lat],
           [endCoords.lng, endCoords.lat],
@@ -54,7 +61,8 @@ const LiveLocationMap = () => {
       if (data.routes && data.routes.length > 0) {
         const encodedPolyline = data.routes[0].geometry;
         const decodedPolyline = polyline.decode(encodedPolyline);
-        return decodedPolyline.map((coord) => [coord[0], coord[1]]);
+        // Swap lat/lng for Leaflet format
+        return decodedPolyline.map(([lat, lng]) => [lat, lng]);
       } else {
         alert('No route found');
         return null;
@@ -73,6 +81,11 @@ const LiveLocationMap = () => {
     }
 
     setIsCreator(true);
+
+    // Notify others immediately
+    if (socketRef.current) {
+      socketRef.current.emit('createRoom', { roomId });
+    }
   };
 
   const startNavigation = async () => {
@@ -87,20 +100,21 @@ const LiveLocationMap = () => {
     const routeCoords = await calculateRoute(startCoords, endCoords);
     if (routeCoords) {
       setRoute(routeCoords);
-      if (socket) {
-        socket.emit('createRoom', { roomId, route: routeCoords, creatorLocation });
+      if (socketRef.current) {
+        socketRef.current.emit('createRoom', { roomId, route: routeCoords, creatorLocation });
       }
     }
   };
 
   const joinRoom = () => {
-    if (socket && roomId) {
-      socket.emit('joinRoom', roomId);
+    if (socketRef.current && roomId) {
+      socketRef.current.emit('joinRoom', roomId);
     } else {
       alert('Please enter a Room ID');
     }
   };
 
+  // Live location update for creator
   useEffect(() => {
     if (!isCreator || !navigator.geolocation) return;
 
@@ -109,13 +123,11 @@ const LiveLocationMap = () => {
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setCreatorLocation({ lat: latitude, lng: longitude });
-          if (socket) {
-            socket.emit('updateLocation', { roomId, location: { lat: latitude, lng: longitude } });
+          if (socketRef.current) {
+            socketRef.current.emit('updateLocation', { roomId, location: { lat: latitude, lng: longitude } });
           }
         },
-        (err) => {
-          console.error('Error getting location:', err);
-        },
+        (err) => console.error('Error getting location:', err),
         { enableHighAccuracy: true }
       );
     };
@@ -124,7 +136,7 @@ const LiveLocationMap = () => {
     const interval = setInterval(updateLocation, 5000);
 
     return () => clearInterval(interval);
-  }, [socket, roomId, isCreator]);
+  }, [isCreator, roomId]);
 
   return (
     <div className="flex flex-col h-screen">
@@ -200,16 +212,9 @@ const LiveLocationMap = () => {
       {/* Map Container */}
       <div className="flex-grow">
         <MapContainer center={[20.5937, 78.9629]} zoom={5} className="h-full w-full rounded-lg shadow-md">
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; OpenStreetMap contributors'
-          />
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
           {route.length > 0 && <Polyline positions={route} color="blue" />}
-          {creatorLocation && (
-            <Marker position={[creatorLocation.lat, creatorLocation.lng]}>
-              <Popup>Creator's Live Location</Popup>
-            </Marker>
-          )}
+          {creatorLocation && <Marker position={[creatorLocation.lat, creatorLocation.lng]}><Popup>Creator's Live Location</Popup></Marker>}
         </MapContainer>
       </div>
     </div>
