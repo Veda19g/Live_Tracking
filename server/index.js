@@ -8,12 +8,13 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: 'https://live-tracking-xi.vercel.app/' || '*' }));
 app.use(express.json()); // Parse JSON request bodies
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*', // Allow all origins (update this for production)
+    origin: 'https://live-tracking-xi.vercel.app/' || '*',
+    methods: ['GET', 'POST']
   },
 });
 
@@ -86,8 +87,8 @@ app.post('/api/directions', async (req, res) => {
       console.log('A user disconnected:', socket.id);
     });
   });
-
+const port=5000;
   
-server.listen(5000, () => {
+server.listen(port, () => {
   console.log('Socket.IO server is running on port 5000');
 });
