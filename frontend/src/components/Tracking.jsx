@@ -28,7 +28,7 @@ const LiveLocationMap = () => {
   // Connect to Socket.io
   useEffect(() => {
     if (!socketRef.current) {
-      socketRef.current = io('https://live-tracking-backend-07ma.onrender.com/');
+      socketRef.current = io('https://live-tracking-yzkv.onrender.com');
 
       socketRef.current.on('roomData', (data) => {
         setRoute(data.route);
@@ -50,7 +50,7 @@ const LiveLocationMap = () => {
 
   const calculateRoute = async (startCoords, endCoords) => {
     try {
-      const response = await axios.post('https://live-tracking-backend-07ma.onrender.com/api/directions', {
+      const response = await axios.post('https://live-tracking-yzkv.onrender.com/api/directions', {
         coordinates: [
           [startCoords.lng, startCoords.lat],
           [endCoords.lng, endCoords.lat],
