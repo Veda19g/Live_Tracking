@@ -8,7 +8,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const app = express();
-app.use(cors({ origin: 'https://live-tracking-xi.vercel.app/' || '*' }));
+app.use(cors({ origin: 'https://live-tracking-n3syte67g-veda19gs-projects.vercel.app/' || '*' }));
 app.use(express.json()); // Parse JSON request bodies
 const server = http.createServer(app);
 const io = new Server(server, {
